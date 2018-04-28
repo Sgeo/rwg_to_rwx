@@ -1,0 +1,6 @@
+[package]
+name = "rwg20_to_rwx"
+version = "0.1.0"
+authors = ["Sgeo <sgeoster@gmail.com>"]
+
+[dependencies]
