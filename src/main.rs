@@ -59,49 +59,43 @@ fn rw_open(device: &str) -> Result<(), c_int> {
 
 fn add_dummy_texture(name: &str) {
     unsafe {
-        //let raster = RwCreateRaster(128, 128);
-        //let raster = RwReadRaster(CString::new("dummy.bmp").unwrap().into_raw(), 0);
-        //println!("raster: {:?}", raster);
-        //println!("Error: {}", RwGetError());
-        //println!("raster width: {}", RwGetRasterWidth(raster));
-        //let texture = RwCreateTexture(raster);
-        let texture = RwReadNamedTexture(CString::new("rustwood").unwrap().into_raw());
+        let texture = RwReadNamedTexture(cs("rustwood"));
         println!("texture: {:?}", texture);
         println!("Error: {}", RwGetError());
         RwAddTextureToDict(CString::new(name).unwrap().into_raw(), texture);
     }
 }
 
+fn cs(s: &str) -> *mut c_char {
+    CString::new(s).unwrap().into_raw()
+}
+
 fn main() {
     //println!("{:?}", rw_open());
     unsafe {
 
-        //println!("Initializing: {:?}", rw_open("MSWindows"));
         RwInitialize(ptr::null_mut());
         println!("Devices: {:?}", CStr::from_ptr(RwGetDisplayDevices()));
-        let displayDevice = RwOpenDisplayDevice(CString::new("rwdl8d20").unwrap().into_raw(), ptr::null_mut());
+        let displayDevice = RwOpenDisplayDevice(cs("rwdl8d20"), ptr::null_mut());
         println!("displayDevice = {:?}", displayDevice);
         println!("start display device = {}", RwStartDisplayDevice(displayDevice, ptr::null_mut()));
-        RwSetShapePath(CString::new(".").unwrap().into_raw(), 1);
-        println!("Opening debug stream: {}", RwOpenDebugStream(CString::new("debug.txt").unwrap().into_raw()));
-        let stream = RwOpenStream(2, 1, CString::new("counter7_modified.rwg").unwrap().into_raw());
+        println!("Error: {}", RwGetError());
+        RwSetShapePath(cs("."), 1);
+        let stream = RwOpenStream(2, 1, cs("counter7_modified.rwg"));
         add_dummy_texture("dai");
         add_dummy_texture("mizo2");
         add_dummy_texture("bwn3");
         println!("stream = {:?}", stream);
-        //let chunkFound = RwFindStreamChunk(stream, 0x434c554d);
-        //println!("chunkFound = {:?}", chunkFound);
         let mut chunkType: u32 = 0;
         let readChunkTypeSuccess = RwReadStreamChunkType(stream, &mut chunkType);
         println!("Success?: {:?}, Type: {:X}", readChunkTypeSuccess, chunkType);
         if chunkType == 0x434C554D { // CLUM
-            //RwSeekStream(stream, 4);
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
             println!("Success: {}, Clump: {:?}", success, clump);
             println!("Error: {}", RwGetError());
             println!("Internal Error: {}", RwGetInternalError());
-            RwWriteShape(CString::new("counter7_modified.rwg.rwx").unwrap().into_raw(), clump);
+            RwWriteShape(cs("counter7_modified.rwg.rwx"), clump);
         }
 
     }
