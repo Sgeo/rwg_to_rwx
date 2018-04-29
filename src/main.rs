@@ -1,3 +1,152 @@
+#[allow(dead_code)]
+#[allow(non_upper_case_globals)]
+#[allow(non_camel_case_types)]
+#[allow(non_snake_case)]
+mod rw;
+
+use std::io::Read;
+use std::ffi::{CString, CStr};
+use std::os::raw::c_char;
+use std::os::raw::c_void;
+use std::os::raw::c_int;
+use std::os::raw::c_long;
+use std::ptr;
+
+extern crate libloading as lib;
+extern crate libc;
+
+#[macro_use]
+extern crate lazy_static;
+
+fn make_stdlib() -> rw::RwStdlib {
+    unsafe extern "C" fn malloc(size: usize) -> *mut c_void {
+        println!("malloc({})", size);
+        return ptr::null_mut();
+    }
+    unsafe extern "C" fn calloc(size: usize, count: usize) -> *mut c_void {
+        println!("calloc({}, {})", size, count);
+        return ptr::null_mut();
+    }
+    unsafe extern "C" fn realloc(ptr: *mut c_void, size: usize) -> *mut c_void {
+        println!("realloc({:?}, {})", ptr, size);
+        return ptr::null_mut();
+    }
+    unsafe extern "C" fn free(ptr: *mut c_void) {
+        println!("free({:?})", ptr);
+    }
+    rw::RwStdlib {
+        rwmalloc: Some(malloc),
+        rwcalloc: Some(calloc),
+        rwrealloc: Some(realloc),
+        rwfree: Some(free),
+    }
+}
+
+lazy_static! {
+    static ref RWL20: lib::Library = lib::Library::new("RWL20.dll").expect("Unable to load RWL20.DLL");
+    static ref RwOpen: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwOpen\0").expect("Unable to load RwOpen") };
+    static ref RwInitialize: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut rw::RwStdlib) -> c_int> = unsafe { RWL20.get(b"RwInitialize\0").expect("Unable to load RwInitialize") };
+    static ref RwRelease: lib::Symbol<'static, unsafe extern "stdcall" fn()> = unsafe { RWL20.get(b"RwRelease\0").expect("Unable to load RwRelease") };
+    static ref RwClose: lib::Symbol<'static, unsafe extern "stdcall" fn()> = unsafe { RWL20.get(b"RwClose\0").expect("Unable to load RwClose") };
+    static ref RwGetError: lib::Symbol<'static, unsafe extern "stdcall" fn() -> c_int> = unsafe { RWL20.get(b"RwGetError\0").expect("Unable to load RwGetError") };
+    static ref RwGetInternalError: lib::Symbol<'static, unsafe extern "stdcall" fn() -> c_long> = unsafe { RWL20.get(b"RwGetInternalError\0").expect("Unable to load RwGetInternalError") };
+    static ref RwOpenStream: lib::Symbol<'static, unsafe extern "stdcall" fn(c_int, c_int, *mut rw::RwMemory) -> *mut c_void> = unsafe { RWL20.get(b"RwOpenStream\0").expect("Unable to load RwOpenStream") };
+    static ref RwOpenDebugStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> c_int> = unsafe { RWL20.get(b"RwOpenDebugStream\0").expect("Unable to load RwOpenDebugStream") };
+    static ref RwFindStreamChunk: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, u32) -> c_int> = unsafe { RWL20.get(b"RwFindStreamChunk\0").expect("Unable to load RwFindStreamChunk") };
+    static ref RwReadStreamChunkType: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void, *mut u32) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunkType\0").expect("Unable to load RwReadStreamChunkType") };
+    static ref RwSkipStreamChunk: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwSkipStreamChunk\0").expect("Unable to load RwSkipStreamChunk") };
+    static ref RwSeekStream: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void, i32) -> c_int> = unsafe { RWL20.get(b"RwSeekStream\0").expect("Unable to load RwSeekStream") };
+    static ref RwReadStreamChunk: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void, u32, *mut *mut c_void, u32) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunk\0").expect("Unable to load RwReadStreamChunk") };
+    static ref RwGetDisplayDevices: lib::Symbol<'static, unsafe extern "stdcall" fn() -> *mut c_char> = unsafe { RWL20.get(b"RwGetDisplayDevices\0").expect("Unable to load RwGetDisplayDevices") };
+    static ref RwOpenDisplayDevice: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwOpenDisplayDevice\0").expect("Unable to load RwOpenDisplayDevice") };
+    static ref RwSetShapePath: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, u32) -> c_int> = unsafe { RWL20.get(b"RwSetShapePath\0").expect("Unable to load RwSetShapePath") };
+    static ref RwStartDisplayDevice: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwStartDisplayDevice\0").expect("Unable to load RwStartDisplayDevice") };
+    static ref RwCreateRaster: lib::Symbol<'static, unsafe extern "stdcall" fn(i32, i32) -> *mut c_void> = unsafe { RWL20.get(b"RwCreateRaster\0").expect("Unable to load RwCreateRaster") }; 
+    static ref RwReadRaster: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, u32) -> *mut c_void> = unsafe { RWL20.get(b"RwReadRaster\0").expect("Unable to load RwReadRaster") }; 
+    static ref RwCreateTexture: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwCreateTexture\0").expect("Unable to load RwCreateTexture") };
+    static ref RwAddTextureToDict: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwAddTextureToDict\0").expect("Unable to load RwAddTextureToDict") };
+    static ref RwGetRasterWidth: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwGetRasterWidth\0").expect("Unable to load RwGetRasterWidth") };
+    static ref RwReadNamedTexture: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL20.get(b"RwReadNamedTexture\0").expect("Unable to load RwReadNamedTexture") };
+    static ref RwWriteShape: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwWriteShape\0").expect("Unable to load RwWriteShape") };
+}
+
+extern "stdcall" {
+    //#[no_mangle]
+    //fn RwOpen(name: *mut c_char, unknown: *mut c_void) -> c_int;
+}
+
+fn rw_open(device: &str) -> Result<(), c_int> {
+    let MSWindows = CString::new(device).expect("Unable to create MSWindows CString").into_raw();
+    unsafe {
+        if(RwOpen(MSWindows, ptr::null_mut()) == 0) {
+            Err(RwGetError())
+        } else {
+            Ok(())
+        }
+    }
+    
+}
+
+fn add_dummy_texture(name: &str) {
+    unsafe {
+        //let raster = RwCreateRaster(128, 128);
+        //let raster = RwReadRaster(CString::new("dummy.bmp").unwrap().into_raw(), 0);
+        //println!("raster: {:?}", raster);
+        //println!("Error: {}", RwGetError());
+        //println!("raster width: {}", RwGetRasterWidth(raster));
+        //let texture = RwCreateTexture(raster);
+        let texture = RwReadNamedTexture(CString::new("rustwood").unwrap().into_raw());
+        println!("texture: {:?}", texture);
+        println!("Error: {}", RwGetError());
+        RwAddTextureToDict(CString::new(name).unwrap().into_raw(), texture);
+    }
+}
+
 fn main() {
+    //println!("{:?}", rw_open());
+    let mut stdlib = make_stdlib();
+    unsafe {
+        //let file = libc::fopen(CString::new("counter7_modified.rwg").unwrap().into_raw(), CString::new("rb+").unwrap().into_raw());
+        let mut file = std::fs::File::open("counter7_modified.rwg").unwrap();
+        let mut data = Vec::new();
+        file.read_to_end(&mut data).unwrap();
+        //println!("Initializing: {:?}", rw_open("MSWindows"));
+        RwInitialize(ptr::null_mut());
+        println!("Devices: {:?}", CStr::from_ptr(RwGetDisplayDevices()));
+        let displayDevice = RwOpenDisplayDevice(CString::new("rwdl8d20").unwrap().into_raw(), ptr::null_mut());
+        println!("displayDevice = {:?}", displayDevice);
+        println!("start display device = {}", RwStartDisplayDevice(displayDevice, ptr::null_mut()));
+        RwSetShapePath(CString::new(".").unwrap().into_raw(), 1);
+        println!("Opening debug stream: {}", RwOpenDebugStream(CString::new("debug.txt").unwrap().into_raw()));
+        //let stream = RwOpenStream(2, 1, CString::new("counter7_modified.rwg").unwrap().into_raw());
+        //let stream = RwOpenStream(3, 1, file as *mut c_char);
+        let mut memspec = rw::RwMemory {
+            start: data.as_mut_ptr() as *mut c_char,
+            length: data.len() as u32,
+        };
+        add_dummy_texture("dai");
+        add_dummy_texture("mizo2");
+        add_dummy_texture("bwn3");
+        let stream = RwOpenStream(3, 1, &mut memspec);
+        println!("stream = {:?}", stream);
+        //let chunkFound = RwFindStreamChunk(stream, 0x434c554d);
+        //println!("chunkFound = {:?}", chunkFound);
+        let mut chunkType: u32 = 0;
+        let readChunkTypeSuccess = RwReadStreamChunkType(stream, &mut chunkType);
+        println!("Success?: {:?}, Type: {:X}", readChunkTypeSuccess, chunkType);
+        if chunkType == 0x434C554D { // CLUM
+            //RwSeekStream(stream, 4);
+            let mut clump = ptr::null_mut();
+            let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
+            println!("Success: {}, Clump: {:?}", success, clump);
+            println!("Error: {}", RwGetError());
+            println!("Internal Error: {}", RwGetInternalError());
+            RwWriteShape(CString::new("counter7_modified.rwg.rwx").unwrap().into_raw(), clump);
+        }
+
+    }
     println!("Hello, world!");
+    unsafe {
+        RwRelease();
+    }
 }
