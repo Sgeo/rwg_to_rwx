@@ -72,7 +72,7 @@ fn cs(s: &str) -> *mut c_char {
 }
 
 fn main() {
-    //println!("{:?}", rw_open());
+    let filename = std::env::args().nth(1).expect("Need a filename!");
     unsafe {
 
         RwInitialize(ptr::null_mut());
@@ -83,7 +83,7 @@ fn main() {
         println!("start display device = {}", RwStartDisplayDevice(displayDevice, ptr::null_mut()));
         println!("Error: {}", RwGetError());
         RwSetShapePath(cs("."), 1);
-        let stream = RwOpenStream(2, 1, cs("counter7.rwg"));
+        let stream = RwOpenStream(2, 1, cs(&filename));
         println!("stream = {:?}", stream);
         let mut chunkType: u32 = 0;
         RwReadStreamChunkType(stream, &mut chunkType);
@@ -93,7 +93,6 @@ fn main() {
             let mut texture_header_data: Vec<u8> = vec![0; (header_size - 8) as usize];
             RwReadStream(stream, texture_header_data.as_mut_ptr(), (header_size - 8) as u32);
             let textures = texture_header_data.split(|&char| char == 0).filter(|&tex| tex.len() > 0).map(String::from_utf8_lossy);
-            println!("textures = {:?}", textures);
             for texture in textures {
                 add_dummy_texture(&texture);
             }
@@ -106,7 +105,7 @@ fn main() {
             println!("Success: {}, Clump: {:?}", success, clump);
             println!("Error: {}", RwGetError());
             println!("Internal Error: {}", RwGetInternalError());
-            RwWriteShape(cs("counter7_modified.rwg.rwx"), clump);
+            RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
         }
 
     }
