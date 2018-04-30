@@ -1,5 +1,4 @@
 
-
 use std::io::Read;
 use std::ffi::{CString, CStr};
 use std::os::raw::c_char;
@@ -41,6 +40,8 @@ lazy_static! {
     static ref RwGetRasterWidth: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwGetRasterWidth\0").expect("Unable to load RwGetRasterWidth") };
     static ref RwReadNamedTexture: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL20.get(b"RwReadNamedTexture\0").expect("Unable to load RwReadNamedTexture") };
     static ref RwWriteShape: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwWriteShape\0").expect("Unable to load RwWriteShape") };
+    static ref RwReadStreamChunkHeader: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunkHeader\0").expect("Unable to load RwReadStreamChunkHeader") };
+    static ref RwReadStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> c_int> = unsafe { RWL20.get(b"RwReadStream\0").expect("Unable to load RwReadStream") };
 }
 
 
@@ -75,20 +76,30 @@ fn main() {
     unsafe {
 
         RwInitialize(ptr::null_mut());
+        //println!("Open: {}", RwOpen(cs("NullDevice"), ptr::null_mut()));
         println!("Devices: {:?}", CStr::from_ptr(RwGetDisplayDevices()));
         let displayDevice = RwOpenDisplayDevice(cs("rwdl8d20"), ptr::null_mut());
         println!("displayDevice = {:?}", displayDevice);
         println!("start display device = {}", RwStartDisplayDevice(displayDevice, ptr::null_mut()));
         println!("Error: {}", RwGetError());
         RwSetShapePath(cs("."), 1);
-        let stream = RwOpenStream(2, 1, cs("counter7_modified.rwg"));
-        add_dummy_texture("dai");
-        add_dummy_texture("mizo2");
-        add_dummy_texture("bwn3");
+        let stream = RwOpenStream(2, 1, cs("counter7.rwg"));
         println!("stream = {:?}", stream);
         let mut chunkType: u32 = 0;
-        let readChunkTypeSuccess = RwReadStreamChunkType(stream, &mut chunkType);
-        println!("Success?: {:?}, Type: {:X}", readChunkTypeSuccess, chunkType);
+        RwReadStreamChunkType(stream, &mut chunkType);
+        if chunkType == 0x5A5A5A5B { // ZZZ[, a header used by Worlds to list textures.
+            let header_size = RwReadStreamChunkHeader(stream);
+            RwSeekStream(stream, 8);
+            let mut texture_header_data: Vec<u8> = vec![0; (header_size - 8) as usize];
+            RwReadStream(stream, texture_header_data.as_mut_ptr(), (header_size - 8) as u32);
+            let textures = texture_header_data.split(|&char| char == 0).filter(|&tex| tex.len() > 0).map(String::from_utf8_lossy);
+            println!("textures = {:?}", textures);
+            for texture in textures {
+                add_dummy_texture(&texture);
+            }
+        }
+        let mut chunkType: u32 = 0;
+        RwReadStreamChunkType(stream, &mut chunkType);
         if chunkType == 0x434C554D { // CLUM
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
