@@ -23,6 +23,7 @@ lazy_static! {
     static ref RwGetError: lib::Symbol<'static, unsafe extern "stdcall" fn() -> c_int> = unsafe { RWL20.get(b"RwGetError\0").expect("Unable to load RwGetError") };
     static ref RwGetInternalError: lib::Symbol<'static, unsafe extern "stdcall" fn() -> c_long> = unsafe { RWL20.get(b"RwGetInternalError\0").expect("Unable to load RwGetInternalError") };
     static ref RwOpenStream: lib::Symbol<'static, unsafe extern "stdcall" fn(c_int, c_int, *mut c_char) -> *mut c_void> = unsafe { RWL20.get(b"RwOpenStream\0").expect("Unable to load RwOpenStream") };
+    static ref RwCloseStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> i32> = unsafe { RWL20.get(b"RwCloseStream\0").expect("Unable to load RwCloseStream") };
     static ref RwOpenDebugStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> c_int> = unsafe { RWL20.get(b"RwOpenDebugStream\0").expect("Unable to load RwOpenDebugStream") };
     static ref RwFindStreamChunk: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, u32) -> c_int> = unsafe { RWL20.get(b"RwFindStreamChunk\0").expect("Unable to load RwFindStreamChunk") };
     static ref RwReadStreamChunkType: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void, *mut u32) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunkType\0").expect("Unable to load RwReadStreamChunkType") };
@@ -31,6 +32,7 @@ lazy_static! {
     static ref RwReadStreamChunk: lib::Symbol<'static, unsafe extern "stdcall" fn (*mut c_void, u32, *mut *mut c_void, u32) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunk\0").expect("Unable to load RwReadStreamChunk") };
     static ref RwGetDisplayDevices: lib::Symbol<'static, unsafe extern "stdcall" fn() -> *mut c_char> = unsafe { RWL20.get(b"RwGetDisplayDevices\0").expect("Unable to load RwGetDisplayDevices") };
     static ref RwOpenDisplayDevice: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwOpenDisplayDevice\0").expect("Unable to load RwOpenDisplayDevice") };
+    static ref RwCloseDisplayDevice: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> i32> = unsafe { RWL20.get(b"RwCloseDisplayDevice\0").expect("Unable to load RwCloseDisplayDevice") };
     static ref RwSetShapePath: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, u32) -> c_int> = unsafe { RWL20.get(b"RwSetShapePath\0").expect("Unable to load RwSetShapePath") };
     static ref RwStartDisplayDevice: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwStartDisplayDevice\0").expect("Unable to load RwStartDisplayDevice") };
     static ref RwCreateRaster: lib::Symbol<'static, unsafe extern "stdcall" fn(i32, i32) -> *mut c_void> = unsafe { RWL20.get(b"RwCreateRaster\0").expect("Unable to load RwCreateRaster") }; 
@@ -45,18 +47,6 @@ lazy_static! {
 }
 
 
-
-fn rw_open(device: &str) -> Result<(), c_int> {
-    let MSWindows = CString::new(device).expect("Unable to create MSWindows CString").into_raw();
-    unsafe {
-        if(RwOpen(MSWindows, ptr::null_mut()) == 0) {
-            Err(RwGetError())
-        } else {
-            Ok(())
-        }
-    }
-    
-}
 
 fn add_dummy_texture(name: &str) {
     unsafe {
@@ -75,8 +65,7 @@ fn main() {
     let filename = std::env::args().nth(1).expect("Need a filename!");
     unsafe {
 
-        RwInitialize(ptr::null_mut());
-        //println!("Open: {}", RwOpen(cs("NullDevice"), ptr::null_mut()));
+        println!("Open: {}", RwOpen(cs("NullDevice"), ptr::null_mut()));
         println!("Devices: {:?}", CStr::from_ptr(RwGetDisplayDevices()));
         let displayDevice = RwOpenDisplayDevice(cs("rwdl8d20"), ptr::null_mut());
         println!("displayDevice = {:?}", displayDevice);
@@ -102,15 +91,14 @@ fn main() {
         if chunkType == 0x434C554D { // CLUM
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
-            println!("Success: {}, Clump: {:?}", success, clump);
+            println!("Success loading clump: {}, Clump: {:?}", success, clump);
             println!("Error: {}", RwGetError());
-            println!("Internal Error: {}", RwGetInternalError());
-            RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
+            let writeResult = RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
+            if writeResult == 1 {
+                println!("Successfully wrote .rwx!");
+            }
         }
-
-    }
-    println!("Hello, world!");
-    unsafe {
-        RwRelease();
+        RwCloseStream(stream, ptr::null_mut());
+        RwCloseDisplayDevice(displayDevice);
     }
 }
