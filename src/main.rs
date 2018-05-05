@@ -15,7 +15,7 @@ extern crate lazy_static;
 
 
 lazy_static! {
-    static ref RWL20: lib::Library = lib::Library::new("RWL20.dll").expect("Unable to load RWL20.DLL");
+    static ref RWL20: lib::Library = lib::Library::new("RWL21.dll").expect("Unable to load RWL21.DLL");
     static ref RwOpen: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwOpen\0").expect("Unable to load RwOpen") };
     static ref RwInitialize: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwInitialize\0").expect("Unable to load RwInitialize") };
     static ref RwRelease: lib::Symbol<'static, unsafe extern "stdcall" fn()> = unsafe { RWL20.get(b"RwRelease\0").expect("Unable to load RwRelease") };
@@ -51,25 +51,10 @@ lazy_static! {
 lazy_static! {
     static ref RwCalculateClumpVertexNormal: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32) -> *mut c_void> = unsafe { RWL20.get(b"RwCalculateClumpVertexNormal\0").expect("Unable to load RwCalculateClumpVertexNormal") };
     static ref RwSetClumpVertexUV: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, f32, f32) -> *mut c_void> = unsafe { RWL20.get(b"RwSetClumpVertexUV\0").expect("Unable to load RwSetClumpVertexUV") };
+    static ref RwForAllClumpsInHierarchy: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> *mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwForAllClumpsInHierarchy\0").expect("Unable to load RwForAllClumpsInHierarchy") };
 }
 
-lazy_static! {
-    static ref RWL21: lib::Library = lib::Library::new("RWL21.dll").expect("Unable to load RWL21.DLL");
-    static ref RwOpen21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL21.get(b"RwOpen\0").expect("Unable to load RwOpen") };
-    static ref RwOpenDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL21.get(b"RwOpenDisplayDevice\0").expect("Unable to load RwOpenDisplayDevice") };
-    static ref RwStartDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> c_int> = unsafe { RWL21.get(b"RwStartDisplayDevice\0").expect("Unable to load RwStartDisplayDevice") };
-    static ref RwSetShapePath21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, u32) -> c_int> = unsafe { RWL21.get(b"RwSetShapePath\0").expect("Unable to load RwSetShapePath") };
-    static ref RwReadShape21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwReadShape\0").expect("Unable to load RwReadShape") };
-    static ref RwOpenStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(c_int, c_int, *mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwOpenStream\0").expect("Unable to load RwOpenStream") };
-    static ref RwReadNamedTexture21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwReadNamedTexture\0").expect("Unable to load RwReadNamedTexture") };
-    static ref RwAddTextureToDict21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL21.get(b"RwAddTextureToDict\0").expect("Unable to load RwAddTextureToDict") };
-    static ref RwWriteStreamChunkHeader21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, i32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamChunkHeader\0").expect("Unable to load RwWriteStreamChunkHeader") };
-    static ref RwWriteStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *const u8, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStream\0").expect("Unable to load RwWriteStream") };
-    static ref RwWriteStreamInt21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *const i32, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamInt\0").expect("Unable to load RwWriteStreamInt") };
-    static ref RwWriteStreamChunk21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamChunk\0").expect("Unable to load RwWriteStreamChunk") };
-    static ref RwCloseStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> i32> = unsafe { RWL21.get(b"RwCloseStream\0").expect("Unable to load RwCloseStream") };
-    static ref RwCloseDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> i32> = unsafe { RWL21.get(b"RwCloseDisplayDevice\0").expect("Unable to load RwCloseDisplayDevice") };
-}
+
 
 
 
@@ -82,13 +67,6 @@ fn add_dummy_texture(name: &str) {
     }
 }
 
-fn add_dummy_texture21(name: &str) {
-    unsafe {
-        let texture = RwReadNamedTexture21(cs("rustwood"));
-        println!("texture: {:?}", texture);
-        RwAddTextureToDict21(CString::new(name).unwrap().into_raw(), texture);
-    }
-}
 
 fn cs(s: &str) -> *mut c_char {
     CString::new(s).unwrap().into_raw()
@@ -116,7 +94,7 @@ fn main() {
 
         println!("Open: {}", RwOpen(cs("NullDevice"), ptr::null_mut()));
         println!("Devices: {:?}", CStr::from_ptr(RwGetDisplayDevices()));
-        let displayDevice = RwOpenDisplayDevice(cs("rwdl8d20"), ptr::null_mut());
+        let displayDevice = RwOpenDisplayDevice(cs("rwdl8d21"), ptr::null_mut());
         println!("displayDevice = {:?}", displayDevice);
         println!("start display device = {}", RwStartDisplayDevice(displayDevice, ptr::null_mut()));
         println!("Error: {}", RwGetError());
@@ -142,15 +120,19 @@ fn main() {
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
             println!("Success loading clump: {}, Clump: {:?}", success, clump);
-            let num_vertices = RwGetClumpNumVertices(clump);
-            println!("Number of vertices: {}", num_vertices);
-            for vertex in 1 .. (num_vertices + 1) {
-                let mut uv = UV::new();
-                RwGetClumpVertexUV(clump, vertex, &mut uv);
-                println!("Vertex {} UV = {:?}", vertex, uv);
-                //RwCalculateClumpVertexNormal(clump, vertex);
-                RwSetClumpVertexUV(clump, vertex, uv.u, uv.v);
+            unsafe extern "stdcall" fn reset_uv(clump: *mut c_void) -> *mut c_void {
+                let num_vertices = RwGetClumpNumVertices(clump);
+                println!("Number of vertices: {}", num_vertices);
+                for vertex in 1 .. (num_vertices + 1) {
+                    let mut uv = UV::new();
+                    RwGetClumpVertexUV(clump, vertex, &mut uv);
+                    println!("Vertex {} UV = {:?}", vertex, uv);
+                    //RwCalculateClumpVertexNormal(clump, vertex);
+                    RwSetClumpVertexUV(clump, vertex, uv.u, uv.v);
+                }
+                clump
             }
+            RwForAllClumpsInHierarchy(clump, reset_uv);
             println!("Error: {}", RwGetError());
             let writeResult = RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
             if writeResult == 1 {
@@ -159,28 +141,5 @@ fn main() {
         }
         RwCloseStream(stream, ptr::null_mut());
         RwCloseDisplayDevice(displayDevice);
-        
-        println!("Open: {}", RwOpen21(cs("NullDevice"), ptr::null_mut()));
-        let displayDevice = RwOpenDisplayDevice21(cs("rwdl8d21"), ptr::null_mut());
-        println!("displayDevice = {:?}", displayDevice);
-        println!("start display device = {}", RwStartDisplayDevice21(displayDevice, ptr::null_mut()));
-        RwSetShapePath21(cs("."), 1);
-        let clump = RwReadShape21(cs(&format!("{}.rwx", filename)));
-        println!("clump = {:?}", clump);
-        let stream = RwOpenStream21(2, 2, cs(&format!("{}.rwx.rwg", filename)));
-        println!("Opened output stream");
-        RwWriteStreamChunkHeader21(stream, 0x5A5A5A5B, (texture_header_data.len() + 8) as i32);
-        println!("Wrote stream chunk header");
-        //RwWriteStreamInt21(stream, [0x13765342, 0x00000001].as_ptr(), 8);
-        RwWriteStream21(stream, [0x13, 0x76, 0x53, 0x42, 0x00, 0x00, 0x00, 0x01].as_ptr(), 8);
-        println!("Wrote stream ints");
-        RwWriteStream21(stream, texture_header_data.as_ptr(), texture_header_data.len() as u32);
-        println!("Wrote texture header");
-        RwWriteStreamChunk21(stream, 0x434C554D, clump, 0x17); // 17 is used by the original RWX2RWG.EXE
-        println!("Wrote stream chunk");
-        RwCloseStream21(stream, ptr::null_mut());
-        println!("Closed stream");
-        RwCloseDisplayDevice(displayDevice);
-        println!("Closed display device");
     }
 }
