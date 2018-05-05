@@ -44,6 +44,13 @@ lazy_static! {
     static ref RwWriteShape: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL20.get(b"RwWriteShape\0").expect("Unable to load RwWriteShape") };
     static ref RwReadStreamChunkHeader: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwReadStreamChunkHeader\0").expect("Unable to load RwReadStreamChunkHeader") };
     static ref RwReadStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> c_int> = unsafe { RWL20.get(b"RwReadStream\0").expect("Unable to load RwReadStream") };
+    static ref RwGetClumpNumVertices: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> c_int> = unsafe { RWL20.get(b"RwGetClumpNumVertices\0").expect("Unable to load RwGetClumpNumVertices") };
+    static ref RwGetClumpVertexUV: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, *mut UV) -> *mut UV> = unsafe { RWL20.get(b"RwGetClumpVertexUV\0").expect("Unable to load RwGetClumpVertexUV") };
+}
+
+lazy_static! {
+    static ref RwCalculateClumpVertexNormal: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32) -> *mut c_void> = unsafe { RWL20.get(b"RwCalculateClumpVertexNormal\0").expect("Unable to load RwCalculateClumpVertexNormal") };
+    static ref RwSetClumpVertexUV: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, f32, f32) -> *mut c_void> = unsafe { RWL20.get(b"RwSetClumpVertexUV\0").expect("Unable to load RwSetClumpVertexUV") };
 }
 
 lazy_static! {
@@ -87,6 +94,22 @@ fn cs(s: &str) -> *mut c_char {
     CString::new(s).unwrap().into_raw()
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+struct UV {
+    u: f32,
+    v: f32,
+}
+
+impl UV {
+    fn new() -> UV {
+        UV {
+            u: 0.0,
+            v: 0.0
+        }
+    }
+}
+
 fn main() {
     let filename = std::env::args().nth(1).expect("Need a filename!");
     unsafe {
@@ -119,6 +142,15 @@ fn main() {
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
             println!("Success loading clump: {}, Clump: {:?}", success, clump);
+            let num_vertices = RwGetClumpNumVertices(clump);
+            println!("Number of vertices: {}", num_vertices);
+            for vertex in 1 .. (num_vertices + 1) {
+                let mut uv = UV::new();
+                RwGetClumpVertexUV(clump, vertex, &mut uv);
+                println!("Vertex {} UV = {:?}", vertex, uv);
+                //RwCalculateClumpVertexNormal(clump, vertex);
+                RwSetClumpVertexUV(clump, vertex, uv.u, uv.v);
+            }
             println!("Error: {}", RwGetError());
             let writeResult = RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
             if writeResult == 1 {
@@ -135,7 +167,7 @@ fn main() {
         RwSetShapePath21(cs("."), 1);
         let clump = RwReadShape21(cs(&format!("{}.rwx", filename)));
         println!("clump = {:?}", clump);
-        let stream = RwOpenStream21(2, 2, cs(&filename));
+        let stream = RwOpenStream21(2, 2, cs(&format!("{}.rwx.rwg", filename)));
         println!("Opened output stream");
         RwWriteStreamChunkHeader21(stream, 0x5A5A5A5B, (texture_header_data.len() + 8) as i32);
         println!("Wrote stream chunk header");
@@ -144,7 +176,7 @@ fn main() {
         println!("Wrote stream ints");
         RwWriteStream21(stream, texture_header_data.as_ptr(), texture_header_data.len() as u32);
         println!("Wrote texture header");
-        RwWriteStreamChunk21(stream, 0x434C554D, clump, 17); // 17 is used by the original RWX2RWG.EXE
+        RwWriteStreamChunk21(stream, 0x434C554D, clump, 0x17); // 17 is used by the original RWX2RWG.EXE
         println!("Wrote stream chunk");
         RwCloseStream21(stream, ptr::null_mut());
         println!("Closed stream");
