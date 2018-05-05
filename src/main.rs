@@ -46,6 +46,24 @@ lazy_static! {
     static ref RwReadStream: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut u8, u32) -> c_int> = unsafe { RWL20.get(b"RwReadStream\0").expect("Unable to load RwReadStream") };
 }
 
+lazy_static! {
+    static ref RWL21: lib::Library = lib::Library::new("RWL21.dll").expect("Unable to load RWL21.DLL");
+    static ref RwOpen21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> c_int> = unsafe { RWL21.get(b"RwOpen\0").expect("Unable to load RwOpen") };
+    static ref RwOpenDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL21.get(b"RwOpenDisplayDevice\0").expect("Unable to load RwOpenDisplayDevice") };
+    static ref RwStartDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> c_int> = unsafe { RWL21.get(b"RwStartDisplayDevice\0").expect("Unable to load RwStartDisplayDevice") };
+    static ref RwSetShapePath21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, u32) -> c_int> = unsafe { RWL21.get(b"RwSetShapePath\0").expect("Unable to load RwSetShapePath") };
+    static ref RwReadShape21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwReadShape\0").expect("Unable to load RwReadShape") };
+    static ref RwOpenStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(c_int, c_int, *mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwOpenStream\0").expect("Unable to load RwOpenStream") };
+    static ref RwReadNamedTexture21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char) -> *mut c_void> = unsafe { RWL21.get(b"RwReadNamedTexture\0").expect("Unable to load RwReadNamedTexture") };
+    static ref RwAddTextureToDict21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_char, *mut c_void) -> *mut c_void> = unsafe { RWL21.get(b"RwAddTextureToDict\0").expect("Unable to load RwAddTextureToDict") };
+    static ref RwWriteStreamChunkHeader21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, i32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamChunkHeader\0").expect("Unable to load RwWriteStreamChunkHeader") };
+    static ref RwWriteStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *const u8, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStream\0").expect("Unable to load RwWriteStream") };
+    static ref RwWriteStreamInt21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *const i32, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamInt\0").expect("Unable to load RwWriteStreamInt") };
+    static ref RwWriteStreamChunk21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, u32, *mut c_void, u32) -> c_int> = unsafe { RWL21.get(b"RwWriteStreamChunk\0").expect("Unable to load RwWriteStreamChunk") };
+    static ref RwCloseStream21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, *mut c_void) -> i32> = unsafe { RWL21.get(b"RwCloseStream\0").expect("Unable to load RwCloseStream") };
+    static ref RwCloseDisplayDevice21: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void) -> i32> = unsafe { RWL21.get(b"RwCloseDisplayDevice\0").expect("Unable to load RwCloseDisplayDevice") };
+}
+
 
 
 fn add_dummy_texture(name: &str) {
@@ -54,6 +72,14 @@ fn add_dummy_texture(name: &str) {
         println!("texture: {:?}", texture);
         println!("Error: {}", RwGetError());
         RwAddTextureToDict(CString::new(name).unwrap().into_raw(), texture);
+    }
+}
+
+fn add_dummy_texture21(name: &str) {
+    unsafe {
+        let texture = RwReadNamedTexture21(cs("rustwood"));
+        println!("texture: {:?}", texture);
+        RwAddTextureToDict21(CString::new(name).unwrap().into_raw(), texture);
     }
 }
 
@@ -76,10 +102,11 @@ fn main() {
         println!("stream = {:?}", stream);
         let mut chunkType: u32 = 0;
         RwReadStreamChunkType(stream, &mut chunkType);
+        let mut texture_header_data: Vec<u8> = Vec::new();
         if chunkType == 0x5A5A5A5B { // ZZZ[, a header used by Worlds to list textures.
             let header_size = RwReadStreamChunkHeader(stream);
             RwSeekStream(stream, 8);
-            let mut texture_header_data: Vec<u8> = vec![0; (header_size - 8) as usize];
+            texture_header_data = vec![0; (header_size - 8) as usize];
             RwReadStream(stream, texture_header_data.as_mut_ptr(), (header_size - 8) as u32);
             let textures = texture_header_data.split(|&char| char == 0).filter(|&tex| tex.len() > 0).map(String::from_utf8_lossy);
             for texture in textures {
@@ -100,5 +127,28 @@ fn main() {
         }
         RwCloseStream(stream, ptr::null_mut());
         RwCloseDisplayDevice(displayDevice);
+        
+        println!("Open: {}", RwOpen21(cs("NullDevice"), ptr::null_mut()));
+        let displayDevice = RwOpenDisplayDevice21(cs("rwdl8d21"), ptr::null_mut());
+        println!("displayDevice = {:?}", displayDevice);
+        println!("start display device = {}", RwStartDisplayDevice21(displayDevice, ptr::null_mut()));
+        RwSetShapePath21(cs("."), 1);
+        let clump = RwReadShape21(cs(&format!("{}.rwx", filename)));
+        println!("clump = {:?}", clump);
+        let stream = RwOpenStream21(2, 2, cs(&filename));
+        println!("Opened output stream");
+        RwWriteStreamChunkHeader21(stream, 0x5A5A5A5B, (texture_header_data.len() + 8) as i32);
+        println!("Wrote stream chunk header");
+        //RwWriteStreamInt21(stream, [0x13765342, 0x00000001].as_ptr(), 8);
+        RwWriteStream21(stream, [0x13, 0x76, 0x53, 0x42, 0x00, 0x00, 0x00, 0x01].as_ptr(), 8);
+        println!("Wrote stream ints");
+        RwWriteStream21(stream, texture_header_data.as_ptr(), texture_header_data.len() as u32);
+        println!("Wrote texture header");
+        RwWriteStreamChunk21(stream, 0x434C554D, clump, 17); // 17 is used by the original RWX2RWG.EXE
+        println!("Wrote stream chunk");
+        RwCloseStream21(stream, ptr::null_mut());
+        println!("Closed stream");
+        RwCloseDisplayDevice(displayDevice);
+        println!("Closed display device");
     }
 }
