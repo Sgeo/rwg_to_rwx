@@ -51,6 +51,7 @@ lazy_static! {
 lazy_static! {
     static ref RwCalculateClumpVertexNormal: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32) -> *mut c_void> = unsafe { RWL20.get(b"RwCalculateClumpVertexNormal\0").expect("Unable to load RwCalculateClumpVertexNormal") };
     static ref RwSetClumpVertexUV: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, i32, f32, f32) -> *mut c_void> = unsafe { RWL20.get(b"RwSetClumpVertexUV\0").expect("Unable to load RwSetClumpVertexUV") };
+    static ref RwForAllClumpsInHierarchy: lib::Symbol<'static, unsafe extern "stdcall" fn(*mut c_void, unsafe extern "stdcall" fn(*mut c_void) -> *mut c_void) -> *mut c_void> = unsafe { RWL20.get(b"RwForAllClumpsInHierarchy\0").expect("Unable to load RwForAllClumpsInHierarchy") };
 }
 
 
@@ -119,15 +120,19 @@ fn main() {
             let mut clump = ptr::null_mut();
             let success = RwReadStreamChunk(stream, 0x434C554D, &mut clump, 0);
             println!("Success loading clump: {}, Clump: {:?}", success, clump);
-            let num_vertices = RwGetClumpNumVertices(clump);
-            println!("Number of vertices: {}", num_vertices);
-            for vertex in 1 .. (num_vertices + 1) {
-                let mut uv = UV::new();
-                RwGetClumpVertexUV(clump, vertex, &mut uv);
-                println!("Vertex {} UV = {:?}", vertex, uv);
-                //RwCalculateClumpVertexNormal(clump, vertex);
-                RwSetClumpVertexUV(clump, vertex, uv.u, uv.v);
+            unsafe extern "stdcall" fn reset_uv(clump: *mut c_void) -> *mut c_void {
+                let num_vertices = RwGetClumpNumVertices(clump);
+                println!("Number of vertices: {}", num_vertices);
+                for vertex in 1 .. (num_vertices + 1) {
+                    let mut uv = UV::new();
+                    RwGetClumpVertexUV(clump, vertex, &mut uv);
+                    println!("Vertex {} UV = {:?}", vertex, uv);
+                    //RwCalculateClumpVertexNormal(clump, vertex);
+                    RwSetClumpVertexUV(clump, vertex, uv.u, uv.v);
+                }
+                clump
             }
+            RwForAllClumpsInHierarchy(clump, reset_uv);
             println!("Error: {}", RwGetError());
             let writeResult = RwWriteShape(cs(&format!("{}.rwx", filename)), clump);
             if writeResult == 1 {
