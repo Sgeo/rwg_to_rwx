@@ -1,5 +1,5 @@
 [package]
-name = "rwg20_to_rwx"
+name = "rwg20_to_rwg21"
 version = "0.1.0"
 authors = ["Sgeo <sgeoster@gmail.com>"]
 
